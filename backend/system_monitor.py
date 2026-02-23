@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -24,7 +25,14 @@ class SystemMonitor:
         self.data_dir = Path(config['data_dir'])
         self.max_cpu_temp_c = float(config['max_cpu_temp_c'])
         self.min_free_disk_gb = float(config['min_free_disk_gb'])
-        self.smart_device = str(config.get('smart_device', '/dev/nvme0n1'))
+        self.smart_device = self._validate_smart_device(str(config.get('smart_device', '/dev/nvme0n1')))
+
+
+    @staticmethod
+    def _validate_smart_device(device: str) -> str:
+        if not re.fullmatch(r"/dev/[A-Za-z0-9._:-]+", device):
+            raise ValueError(f'Invalid smart_device path: {device}')
+        return device
 
     def collect(self) -> HealthState:
         return HealthState(
@@ -56,8 +64,7 @@ class SystemMonitor:
         return usage.free / (1024 ** 3)
 
     def _smart_health_ok(self) -> bool:
-        cmd = ['smartctl', '-H', self.smart_device]
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        result = subprocess.run(['smartctl', '-H', self.smart_device], check=False, capture_output=True, text=True)
 
         stdout = (result.stdout or '').strip()
         stderr = (result.stderr or '').strip()
@@ -91,8 +98,7 @@ class SystemMonitor:
         return True
 
     def _read_undervoltage(self) -> bool:
-        cmd = ['vcgencmd', 'get_throttled']
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        result = subprocess.run(['vcgencmd', 'get_throttled'], check=False, capture_output=True, text=True)
         if result.returncode != 0:
             self.logger.warning('Undervoltage monitor unavailable: %s', result.stderr.strip())
             return False
