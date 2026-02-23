@@ -1,0 +1,27 @@
+root_dir: /opt/lio_system
+data_dir: /opt/lio_system/data
+ros_ws_dir: /opt/lio_system/ros_ws
+maps_dir: /opt/lio_system/data/maps
+rosbag_dir: /opt/lio_system/data/rosbag
+logs_dir: /opt/lio_system/data/logs
+frontend_dir: /opt/lio_system/frontend
+ros_launch_cmd: "source /opt/ros/humble/setup.bash && source /opt/lio_system/ros_ws/install/setup.bash && ros2 launch system_bringup industrial.launch.py"
+record_topics: "-a"
+max_cpu_temp_c: 85.0
+min_free_disk_gb: 5.0
+monitor_interval_sec: 5
+watchdog_interval_sec: 3
+lidar_model: livox_mid360
+livox_topic: /livox/lidar
+livox_imu_topic: /livox/imu
+livox_frame_id: livox_frame
+insta360:
+  enabled: true
+  default_model: x4
+  models:
+    x4:
+      api_base_url: http://192.168.42.1
+      timeout_sec: 5
+    x5:
+      api_base_url: http://192.168.43.1
+      timeout_sec: 5

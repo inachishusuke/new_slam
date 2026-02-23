@@ -1,0 +1,1 @@
+"""Map manager package."""
