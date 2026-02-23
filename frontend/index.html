@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Industrial LiDAR-SLAM Control</title>
+  <link rel="stylesheet" href="/ui/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Industrial LiDAR-SLAM</h1>
+    <pre id="status">Loading...</pre>
+    <div class="buttons">
+      <button onclick="invoke('/api/record/start','POST')">Start Recording</button>
+      <button onclick="invoke('/api/record/stop','POST')">Stop Recording</button>
+      <button onclick="invoke('/api/map/save','POST')">Save Map</button>
+      <button onclick="invoke('/api/usb/transfer','POST')">USB Transfer</button>
+      <button class="danger" onclick="invoke('/api/system/shutdown','POST')">Shutdown</button>
+    </div>
+  </main>
+<script src="/ui/app.js"></script>
+</body>
+</html>
