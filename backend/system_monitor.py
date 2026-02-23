@@ -24,6 +24,7 @@ class SystemMonitor:
         self.data_dir = Path(config['data_dir'])
         self.max_cpu_temp_c = float(config['max_cpu_temp_c'])
         self.min_free_disk_gb = float(config['min_free_disk_gb'])
+        self.smart_device = str(config.get('smart_device', '/dev/nvme0n1'))
 
     def collect(self) -> HealthState:
         return HealthState(
@@ -55,11 +56,38 @@ class SystemMonitor:
         return usage.free / (1024 ** 3)
 
     def _smart_health_ok(self) -> bool:
-        cmd = ['bash', '-lc', "smartctl -H /dev/nvme0n1 | grep -E 'PASSED|OK'"]
+        cmd = ['bash', '-lc', f'smartctl -H {self.smart_device}']
         result = subprocess.run(cmd, check=False, capture_output=True, text=True)
-        if result.returncode != 0:
-            self.logger.error('SMART check failed: %s', result.stderr.strip())
+
+        stdout = (result.stdout or '').strip()
+        stderr = (result.stderr or '').strip()
+        output_upper = stdout.upper()
+
+        if result.returncode != 0 and not any(token in output_upper for token in ('PASSED', 'OK', 'FAILED')):
+            self.logger.warning(
+                'SMART health check unavailable for %s (rc=%s): %s',
+                self.smart_device,
+                result.returncode,
+                stderr or stdout,
+            )
+            return True
+
+        if 'FAILED' in output_upper:
+            self.logger.error(
+                'SMART reports failing health for %s: %s',
+                self.smart_device,
+                stdout or stderr,
+            )
             return False
+
+        if 'PASSED' in output_upper or 'OK' in output_upper:
+            return True
+
+        self.logger.warning(
+            'SMART health status unknown for %s: %s',
+            self.smart_device,
+            stdout or stderr,
+        )
         return True
 
     def _read_undervoltage(self) -> bool:
