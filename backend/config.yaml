@@ -5,6 +5,10 @@ maps_dir: /opt/lio_system/data/maps
 rosbag_dir: /opt/lio_system/data/rosbag
 logs_dir: /opt/lio_system/data/logs
 frontend_dir: /opt/lio_system/frontend
+ros_setup_script: /opt/ros/humble/setup.bash
+workspace_setup_script: /opt/lio_system/ros_ws/install/setup.bash
+ros_launch_package: system_bringup
+ros_launch_file: industrial.launch.py
 ros_launch_cmd: "source /opt/ros/humble/setup.bash && source /opt/lio_system/ros_ws/install/setup.bash && ros2 launch system_bringup industrial.launch.py"
 record_topics: "-a"
 max_cpu_temp_c: 85.0

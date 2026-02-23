@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shlex
 import signal
 import subprocess
 import time
@@ -19,13 +20,28 @@ class RosManager:
         self.record_process: Optional[subprocess.Popen] = None
         self.recording_start_epoch: float | None = None
 
+        self.ros_setup_script = str(config.get('ros_setup_script', '/opt/ros/humble/setup.bash'))
+        self.ws_setup_script = str(config.get('workspace_setup_script', '/opt/lio_system/ros_ws/install/setup.bash'))
+        self.ros_launch_package = str(config.get('ros_launch_package', 'system_bringup'))
+        self.ros_launch_file = str(config.get('ros_launch_file', 'industrial.launch.py'))
+
     def start_ros(self) -> None:
         if self.is_ros_running():
             self.logger.info('ROS already running')
             return
-        command = ['bash', '-lc', self.config['ros_launch_cmd']]
-        self.logger.info('Starting ROS launch')
-        self.ros_process = subprocess.Popen(command, preexec_fn=os.setsid)
+
+        pkg = shlex.quote(self.ros_launch_package)
+        launch_file = shlex.quote(self.ros_launch_file)
+        setup_ros = shlex.quote(self.ros_setup_script)
+        setup_ws = shlex.quote(self.ws_setup_script)
+        command = (
+            f'source {setup_ros} && '
+            f'source {setup_ws} && '
+            f'exec ros2 launch {pkg} {launch_file}'
+        )
+
+        self.logger.info('Starting ROS launch package=%s file=%s', self.ros_launch_package, self.ros_launch_file)
+        self.ros_process = subprocess.Popen(['bash', '-lc', command], preexec_fn=os.setsid)
 
     def stop_ros(self) -> None:
         if not self.ros_process:
@@ -54,12 +70,21 @@ class RosManager:
     def start_recording(self) -> tuple[bool, str]:
         if self.is_recording():
             return False, 'Recording already active'
+
         stamp = int(time.time())
         output_prefix = Path(self.config['rosbag_dir']) / f'bag_{stamp}'
         output_prefix.parent.mkdir(parents=True, exist_ok=True)
-        cmd = f"source /opt/ros/humble/setup.bash && ros2 bag record {self.config['record_topics']} -o {output_prefix}"
+
+        topics = shlex.split(str(self.config.get('record_topics', '-a')))
+        topics_quoted = ' '.join(shlex.quote(topic) for topic in topics)
+        setup_ros = shlex.quote(self.ros_setup_script)
+        command = (
+            f'source {setup_ros} && '
+            f'exec ros2 bag record {topics_quoted} -o {shlex.quote(str(output_prefix))}'
+        )
+
         self.logger.info('Starting rosbag recording to %s', output_prefix)
-        self.record_process = subprocess.Popen(['bash', '-lc', cmd], preexec_fn=os.setsid)
+        self.record_process = subprocess.Popen(['bash', '-lc', command], preexec_fn=os.setsid)
         self.recording_start_epoch = time.time()
         return True, f'Started recording {output_prefix}'
 
@@ -75,7 +100,8 @@ class RosManager:
         return True, 'Recording stopped'
 
     def save_map(self) -> tuple[bool, str]:
-        cmd = 'source /opt/ros/humble/setup.bash && ros2 service call /manual_map_save std_srvs/srv/Trigger {}'
+        setup_ros = shlex.quote(self.ros_setup_script)
+        cmd = f'source {setup_ros} && ros2 service call /manual_map_save std_srvs/srv/Trigger {{}}'
         try:
             result = subprocess.run(['bash', '-lc', cmd], check=False, capture_output=True, text=True, timeout=15)
             if result.returncode != 0:
