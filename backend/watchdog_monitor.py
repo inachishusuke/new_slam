@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
-import time
 from typing import Callable
 
 from ros_manager import RosManager
@@ -23,6 +22,7 @@ class WatchdogMonitor:
         self.ros_manager = ros_manager
         self.logger = logger
         self.on_fault = on_fault
+        self.ros2_executable = str(config.get('ros2_executable', '/opt/ros/humble/bin/ros2'))
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -52,11 +52,16 @@ class WatchdogMonitor:
                 self.logger.exception('Watchdog loop exception: %s', exc)
             self._stop_event.wait(self.interval)
 
-    @staticmethod
-    def _ros_nodes_responsive() -> bool:
-        cmd = ['bash', '-lc', 'source /opt/ros/humble/setup.bash && ros2 node list']
-        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=8)
+    def _ros_nodes_responsive(self) -> bool:
+        result = subprocess.run(
+            [self.ros2_executable, 'node', 'list'],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=8,
+        )
         if result.returncode != 0:
+            self.logger.warning('ros2 node list failed rc=%s stderr=%s', result.returncode, (result.stderr or '').strip())
             return False
         lines = [line for line in result.stdout.splitlines() if line.strip()]
         return len(lines) > 0
