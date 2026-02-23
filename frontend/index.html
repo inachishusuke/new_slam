@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Scanner UI</title>
+    <link rel="stylesheet" href="/ui/style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="status-bar">
+            <div class="status-row"><span>System</span><span id="sys-time">12:00:00</span></div>
+            <div class="status-row"><span>Temp</span><span id="sys-temp">45.0C</span></div>
+            <div class="status-row"><span>SSD</span><span id="sys-disk">-- GB</span></div>
+            <div class="status-row"><span>Lidar</span><span id="status-lidar-text">Active</span></div>
+            <div class="status-row"><span>Camera</span><span id="status-camera-text">Offline</span></div>
+        </header>
+
+        <section class="viewer-section" id="viewer-container">
+            <div class="viewer-3d-canvas" id="canvas3d"></div>
+            <div class="viewer-overlay" id="viewer-overlay">
+                <span>Scanning</span><span>Mapping</span><span>Creating</span>
+            </div>
+            <div class="thermal-throttle-overlay hidden" id="thermal-overlay">
+                <span class="warning-title">Thermal Throttling</span>
+                <span class="warning-sub">3D View Suspended</span>
+            </div>
+            <div class="under-voltage-overlay hidden" id="voltage-overlay">
+                <span class="voltage-icon">⚡</span>
+                <span class="warning-title">LOW VOLTAGE</span>
+                <span class="warning-sub">AUTO-SAVING & STOPPING</span>
+            </div>
+        </section>
+
+        <main class="interaction-area">
+            <button id="btn-record" class="menu-item record">
+                <span class="menu-text" id="record-text">Start</span>
+                <div class="menu-symbol"><span class="arrow">→</span><span class="circle" id="record-circle"></span></div>
+            </button>
+            <div class="record-timer" id="record-timer">00:00:00</div>
+
+            <button id="btn-connect-camera" class="menu-item">
+                <span class="menu-text" id="cam-text">Camera</span>
+                <div class="menu-symbol"><span class="arrow">→</span><span class="circle" id="cam-circle"></span></div>
+            </button>
+
+            <button id="btn-open-usb" class="menu-item">
+                <span class="menu-text">Export</span>
+                <div class="menu-symbol"><span class="arrow">→</span><span class="circle filled"></span></div>
+            </button>
+
+            <button id="btn-settings" class="menu-item">
+                <span class="menu-text">Settings</span>
+                <div class="menu-symbol"><span class="arrow">→</span><span class="circle"></span></div>
+            </button>
+
+            <button id="btn-power" class="menu-item">
+                <span class="menu-text">Power</span>
+                <div class="menu-symbol"><span class="arrow">→</span><span class="circle"></span></div>
+            </button>
+        </main>
+
+        <div id="modal-confirm" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="modal-header"><h2 id="confirm-title">Confirm</h2></div>
+                <div class="modal-actions-row">
+                    <button id="btn-confirm-action" class="btn-text-action red">
+                        <span class="arrow">→</span><span class="menu-text" id="confirm-yes-text">Yes</span><span class="circle red" style="margin-left:auto;"></span>
+                    </button>
+                    <button id="btn-cancel-action" class="btn-text-action">
+                        <span class="arrow">→</span><span class="menu-text">Cancel</span><span class="circle" style="margin-left:auto;"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-usb" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="modal-header"><h2>Selecting<br>Exporting</h2><button id="btn-close-usb" class="btn-icon-only">✕</button></div>
+                <div class="file-list" id="file-list"><div>Loading...</div></div>
+                <div class="modal-actions-row">
+                    <button id="btn-export-selected" class="btn-text-action" style="display:none;">
+                        <span class="arrow">→</span><span class="menu-text" id="selection-count">Copy 0</span><span class="circle filled" style="margin-left:auto;"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-settings" class="modal-overlay hidden">
+            <div class="modal-content">
+                <div class="modal-header"><h2>Camera<br>Settings</h2><button id="btn-close-settings" class="btn-icon-only">✕</button></div>
+
+                <div class="settings-group">
+                    <label class="settings-label">Screen Orientation</label>
+                    <div class="radio-group" style="flex-direction: row; gap: 24px;">
+                        <label class="radio-label"><input type="radio" name="screen-orientation" value="portrait" checked><span>Portrait 縦</span></label>
+                        <label class="radio-label"><input type="radio" name="screen-orientation" value="landscape"><span>Landscape 横</span></label>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <label class="settings-label">3D Viewer Perspective</label>
+                    <div class="radio-group">
+                        <label class="radio-label"><input type="radio" name="camera-mode" value="3rd" checked><span>3rd Person (Default)</span></label>
+                        <label class="radio-label"><input type="radio" name="camera-mode" value="1st"><span>1st Person</span></label>
+                        <label class="radio-label"><input type="radio" name="camera-mode" value="custom"><span>Custom (XYZ)</span></label>
+                    </div>
+                </div>
+
+                <div class="settings-group hidden" id="custom-camera-inputs">
+                    <label class="settings-label">Custom Coordinates</label>
+                    <div class="xyz-inputs">
+                        <input type="number" id="cam-x" placeholder="X" step="0.5" value="0">
+                        <input type="number" id="cam-y" placeholder="Y" step="0.5" value="-5">
+                        <input type="number" id="cam-z" placeholder="Z" step="0.5" value="2">
+                    </div>
+                    <div class="xyz-helper-text">
+                        <span>X: 左右 (Right/Left)</span><span>Y: 前後 (Forward/Back)</span><span>Z: 上下 (Up/Down)</span><br>
+                        <small>※単位: メートル / LiDAR中心が(0,0,0)</small>
+                    </div>
+                </div>
+
+                <div class="modal-actions-row" style="margin-top: 20px;">
+                    <button id="btn-save-settings" class="btn-text-action">
+                        <span class="arrow">→</span><span class="menu-text">Apply Configuration</span><span class="circle filled" style="margin-left:auto;"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/eventemitter2@6.4.9/lib/eventemitter2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ros3d@3/build/ros3d.min.js"></script>
+
+    <script src="/ui/viewer.js"></script>
+    <script src="/ui/app.js"></script>
+</body>
+
+</html>
