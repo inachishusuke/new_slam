@@ -1,0 +1,18 @@
+[Unit]
+Description=Industrial LiDAR-SLAM System
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/lio_system/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/lio_system/backend/main.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
