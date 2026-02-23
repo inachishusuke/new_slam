@@ -11,6 +11,8 @@ from ros_manager import RosManager
 
 
 class WatchdogMonitor:
+    ROS2_NODE_LIST_CMD = ['/opt/ros/humble/bin/ros2', 'node', 'list']
+
     def __init__(
         self,
         config: dict,
@@ -22,7 +24,6 @@ class WatchdogMonitor:
         self.ros_manager = ros_manager
         self.logger = logger
         self.on_fault = on_fault
-        self.ros2_executable = str(config.get('ros2_executable', '/opt/ros/humble/bin/ros2'))
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -54,7 +55,7 @@ class WatchdogMonitor:
 
     def _ros_nodes_responsive(self) -> bool:
         result = subprocess.run(
-            [self.ros2_executable, 'node', 'list'],
+            self.ROS2_NODE_LIST_CMD,
             check=False,
             capture_output=True,
             text=True,

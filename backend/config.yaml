@@ -15,7 +15,6 @@ max_cpu_temp_c: 85.0
 min_free_disk_gb: 5.0
 monitor_interval_sec: 5
 watchdog_interval_sec: 3
-ros2_executable: /opt/ros/humble/bin/ros2
 smart_device: /dev/nvme0n1
 lidar_model: livox_mid360
 livox_topic: /livox/lidar
