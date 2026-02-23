@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 import threading
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Any
 import uvicorn
 import yaml
 from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -110,6 +112,55 @@ def load_config() -> dict[str, Any]:
 config = load_config()
 logger = setup_logger(Path(config['logs_dir']))
 runtime = Runtime(config, logger)
+
+
+class ExportEntry(BaseModel):
+    type: str
+    name: str
+
+
+class UsbTransferRequest(BaseModel):
+    files: list[ExportEntry] = Field(default_factory=list)
+
+
+def _safe_name(name: str) -> str:
+    candidate = Path(name).name
+    if candidate != name or candidate in {'.', '..'}:
+        raise HTTPException(status_code=400, detail=f'Invalid file name: {name}')
+    return candidate
+
+
+def _copy_selected_files(request: UsbTransferRequest) -> int:
+    source_map = {
+        'map': Path(config['maps_dir']),
+        'rosbag': Path(config['rosbag_dir']),
+        'log': Path(config['logs_dir']),
+    }
+    target_root = Path('/media/usb_backup')
+    count = 0
+
+    for entry in request.files:
+        if entry.type not in source_map:
+            raise HTTPException(status_code=400, detail=f'Unsupported file type: {entry.type}')
+
+        safe_name = _safe_name(entry.name)
+        source = source_map[entry.type] / safe_name
+        if not source.exists():
+            raise HTTPException(status_code=404, detail=f'File not found: {entry.type}/{safe_name}')
+
+        target_dir = target_root / entry.type
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = target_dir / safe_name
+
+        if source.is_dir():
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(source, target)
+        else:
+            shutil.copy2(source, target)
+        count += 1
+
+    return count
 
 app = FastAPI(title='Industrial LIO System API', openapi_url='/api/openapi.json')
 app.add_middleware(
@@ -217,12 +268,18 @@ def files() -> dict[str, list[str]]:
 
 
 @app.post('/api/usb/transfer')
-def usb_transfer() -> dict[str, str]:
+def usb_transfer(request: UsbTransferRequest | None = None) -> dict[str, str]:
+    transfer_request = request or UsbTransferRequest()
+
+    if transfer_request.files:
+        copied = _copy_selected_files(transfer_request)
+        return {'message': f'Transfer completed ({copied} selected items)'}
+
     cmd = 'mkdir -p /media/usb_backup && rsync -a /opt/lio_system/data/ /media/usb_backup/'
     result = subprocess.run(['bash', '-lc', cmd], check=False, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(status_code=500, detail=result.stderr.strip())
-    return {'message': 'Transfer completed'}
+    return {'message': 'Transfer completed (full data copy)'}
 
 
 @app.post('/api/system/shutdown')

@@ -5,6 +5,7 @@ let recordStartEpochSec = null;
 let uiUpdateInterval = null;
 let selectedFiles = new Set();
 let filesData = [];
+let fileLookup = new Map();
 
 const elTime = document.getElementById('sys-time');
 const elTemp = document.getElementById('sys-temp');
@@ -303,9 +304,9 @@ async function fetchFiles() {
     try {
         const res = await fetch(`${API_BASE}/files`);
         const payload = await res.json();
-        const maps = (payload.maps || []).map((name, idx) => ({ id: `map-${idx}`, name, type: 'map' }));
-        const bags = (payload.rosbag || []).map((name, idx) => ({ id: `bag-${idx}`, name, type: 'rosbag' }));
-        const logs = (payload.logs || []).map((name, idx) => ({ id: `log-${idx}`, name, type: 'log' }));
+        const maps = (payload.maps || []).map((name) => ({ id: `map:${name}`, name, type: 'map' }));
+        const bags = (payload.rosbag || []).map((name) => ({ id: `rosbag:${name}`, name, type: 'rosbag' }));
+        const logs = (payload.logs || []).map((name) => ({ id: `log:${name}`, name, type: 'log' }));
         filesData = [...maps, ...bags, ...logs];
         renderFileList();
     } catch (_) {
@@ -316,6 +317,7 @@ async function fetchFiles() {
 function renderFileList() {
     elFileList.innerHTML = '';
     selectedFiles.clear();
+    fileLookup = new Map();
     updateSelectionUI();
 
     if (filesData.length === 0) {
@@ -324,6 +326,7 @@ function renderFileList() {
     }
 
     filesData.forEach(file => {
+        fileLookup.set(file.id, file);
         const div = document.createElement('div');
         div.className = 'file-item';
         div.innerHTML = `<div class="file-info"><span class="f-name">${file.name}</span><span class="f-meta">${file.type}</span></div><div class="f-status"></div>`;
@@ -367,11 +370,16 @@ async function executeUsbExport() {
     elSelectionCount.textContent = 'Copying...';
     btnExportSelected.querySelector('.circle')?.classList.add('pulse');
 
+    const selectedEntries = Array.from(selectedFiles)
+        .map((id) => fileLookup.get(id))
+        .filter((file) => file && file.name && file.type)
+        .map((file) => ({ type: file.type, name: file.name }));
+
     try {
         const res = await fetch(`${API_BASE}/usb/transfer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: Array.from(selectedFiles) })
+            body: JSON.stringify({ files: selectedEntries })
         });
 
         if (res.ok) {
