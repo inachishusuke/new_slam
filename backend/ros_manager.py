@@ -17,6 +17,7 @@ class RosManager:
         self.logger = logger
         self.ros_process: Optional[subprocess.Popen] = None
         self.record_process: Optional[subprocess.Popen] = None
+        self.recording_start_epoch: float | None = None
 
     def start_ros(self) -> None:
         if self.is_ros_running():
@@ -42,8 +43,16 @@ class RosManager:
     def is_ros_running(self) -> bool:
         return self.ros_process is not None and self.ros_process.poll() is None
 
+    def is_recording(self) -> bool:
+        return self.record_process is not None and self.record_process.poll() is None
+
+    def recording_duration_sec(self) -> int:
+        if not self.is_recording() or self.recording_start_epoch is None:
+            return 0
+        return max(0, int(time.time() - self.recording_start_epoch))
+
     def start_recording(self) -> tuple[bool, str]:
-        if self.record_process and self.record_process.poll() is None:
+        if self.is_recording():
             return False, 'Recording already active'
         stamp = int(time.time())
         output_prefix = Path(self.config['rosbag_dir']) / f'bag_{stamp}'
@@ -51,14 +60,18 @@ class RosManager:
         cmd = f"source /opt/ros/humble/setup.bash && ros2 bag record {self.config['record_topics']} -o {output_prefix}"
         self.logger.info('Starting rosbag recording to %s', output_prefix)
         self.record_process = subprocess.Popen(['bash', '-lc', cmd], preexec_fn=os.setsid)
+        self.recording_start_epoch = time.time()
         return True, f'Started recording {output_prefix}'
 
     def stop_recording(self) -> tuple[bool, str]:
-        if not self.record_process or self.record_process.poll() is not None:
+        if not self.is_recording():
+            self.record_process = None
+            self.recording_start_epoch = None
             return False, 'Recording is not active'
         self.logger.info('Stopping rosbag recording')
         self._terminate_process_group(self.record_process)
         self.record_process = None
+        self.recording_start_epoch = None
         return True, 'Recording stopped'
 
     def save_map(self) -> tuple[bool, str]:

@@ -168,13 +168,19 @@ async function pollBackendStatus() {
         interactionArea.style.opacity = shouldLockUI ? '0.3' : '1.0';
 
         elStatusLidarText.textContent = data.ros_running ? 'Active' : 'Down';
-        isRecording = !!data.recording;
+        isRecording = Boolean(data.is_recording ?? data.recording);
         updateRecordingUI();
 
         if (isRecording) {
-            if (!recordStartEpochSec) recordStartEpochSec = Date.now() / 1000;
-            const elapsed = Math.max(0, Math.floor(Date.now() / 1000 - recordStartEpochSec));
-            elRecordTimer.textContent = formatTime(elapsed);
+            const reported = Number(data.recording_duration_sec ?? 0);
+            if (reported > 0) {
+                elRecordTimer.textContent = formatTime(reported);
+                recordStartEpochSec = Date.now() / 1000 - reported;
+            } else {
+                if (!recordStartEpochSec) recordStartEpochSec = Date.now() / 1000;
+                const elapsed = Math.max(0, Math.floor(Date.now() / 1000 - recordStartEpochSec));
+                elRecordTimer.textContent = formatTime(elapsed);
+            }
         } else {
             recordStartEpochSec = null;
             elRecordTimer.textContent = '00:00:00';
@@ -199,12 +205,19 @@ async function executeRecordToggle(endpoint) {
     try {
         const res = await fetch(`${API_BASE}${endpoint}`, { method: 'POST' });
         if (!res.ok) throw new Error('record request failed');
-        if (endpoint.endsWith('/start')) {
+        const payload = await res.json().catch(() => ({}));
+        if (typeof payload.is_recording === 'boolean') {
+            isRecording = payload.is_recording;
+        } else if (endpoint.endsWith('/start')) {
             isRecording = true;
+        } else {
+            isRecording = false;
+        }
+
+        if (isRecording) {
             recordStartEpochSec = Date.now() / 1000;
             showToast('Capturing Data');
         } else {
-            isRecording = false;
             recordStartEpochSec = null;
             showToast('Processing Map');
         }

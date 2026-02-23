@@ -149,7 +149,9 @@ def status(camera_model: str | None = Query(default=None)) -> dict[str, Any]:
     return {
         'lidar_model': config.get('lidar_model', 'unknown'),
         'ros_running': runtime.ros.is_ros_running(),
-        'recording': runtime.ros.record_process is not None and runtime.ros.record_process.poll() is None,
+        'recording': runtime.ros.is_recording(),
+        'is_recording': runtime.ros.is_recording(),
+        'recording_duration_sec': runtime.ros.recording_duration_sec(),
         'cpu_temp_c': state.cpu_temp_c,
         'free_disk_gb': state.free_disk_gb,
         'smart_ok': state.smart_ok,
@@ -163,7 +165,7 @@ def record_start() -> dict[str, str]:
     success, message = runtime.ros.start_recording()
     if not success:
         raise HTTPException(status_code=400, detail=message)
-    return {'message': message}
+    return {'message': message, 'is_recording': runtime.ros.is_recording()}
 
 
 @app.post('/api/record/stop')
@@ -171,7 +173,7 @@ def record_stop() -> dict[str, str]:
     success, message = runtime.ros.stop_recording()
     if not success:
         raise HTTPException(status_code=400, detail=message)
-    return {'message': message}
+    return {'message': message, 'is_recording': runtime.ros.is_recording()}
 
 
 @app.post('/api/map/save')
