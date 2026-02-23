@@ -56,7 +56,7 @@ class SystemMonitor:
         return usage.free / (1024 ** 3)
 
     def _smart_health_ok(self) -> bool:
-        cmd = ['bash', '-lc', f'smartctl -H {self.smart_device}']
+        cmd = ['smartctl', '-H', self.smart_device]
         result = subprocess.run(cmd, check=False, capture_output=True, text=True)
 
         stdout = (result.stdout or '').strip()
@@ -91,7 +91,7 @@ class SystemMonitor:
         return True
 
     def _read_undervoltage(self) -> bool:
-        cmd = ['bash', '-lc', 'vcgencmd get_throttled']
+        cmd = ['vcgencmd', 'get_throttled']
         result = subprocess.run(cmd, check=False, capture_output=True, text=True)
         if result.returncode != 0:
             self.logger.warning('Undervoltage monitor unavailable: %s', result.stderr.strip())
